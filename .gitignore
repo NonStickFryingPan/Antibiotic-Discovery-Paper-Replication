@@ -26,3 +26,4 @@ Thumbs.db
 # Temp
 chunks/
 results/full_screen_fast.parquet
+dream/predictions.parquet

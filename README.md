@@ -153,18 +153,24 @@ The experiments live in `messing_around/` — a scrapbook of failures worth docu
 
 ---
 
-## Why Not Faster? (The Honest Rant)
+## Why Not Faster? (Honest Rant)
 
-Tried GPU. Slower than CPU. Model too small — data transfer dwarfed the math.
-Tried Rust. Would help featurization. But inference becomes the new wall. 2× at best.
-Tried bigger batch sizes. Didn't matter. Bottleneck is RDKit, not the forward pass.
-Tried multiprocessing. PyTorch forks don't play nice with Pool.
-Tried Dask. Sends entire partitions at once. OOM at 50K.
-Tried Ray. OOM at 10K.
-Tried ONNX. D-MPNN dynamic graphs can't be traced.
+We tried GPU — slower than CPU. The model is only 50K parameters, so PCIe data transfer overhead eclipsed the actual compute.
+
+We tried Rust. It would accelerate featurization, but once featurization outpaced inference, inference became the new bottleneck. A 2× gain at best, not worth the FFI complexity.
+
+We tried larger batch sizes. The bottleneck is RDKit featurization, not the neural network forward pass.
+
+We tried multiprocessing. PyTorch's fork handling doesn't work inside Python's multiprocessing Pool.
+
+We tried Dask. It sends entire partitions to workers at once, causing OOM at 50K molecules.
+
+We tried Ray. OOM at 10K.
+
+We tried ONNX export. The D-MPNN's dynamic message-passing graphs cannot be statically traced.
 
 **1,442 mol/s on a $1,000 laptop is the floor.**
 
-The GPU sits idle because the model is 50K parameters. The CPU does all the work because RDKit featurization dominates. Spark wins because Arrow streaming keeps memory flat. Everything else crashes or disappoints.
+The GPU sits idle because the model is tiny. The CPU does all the work because RDKit featurization dominates. Spark wins because its Arrow bridge streams data incrementally, keeping memory flat. Everything else either crashed or underperformed.
 
-This isn't failure — it's hitting the constraints of a 7.6 GB WSL2 box with a tiny neural network. On a cluster with 16 cores and 64 GB, the same code scales linearly. The pipeline is sound. The hardware was the ceiling.
+This isn't a failure — it's the constraint envelope of a 7.6 GB WSL2 box driving a 50K-parameter network. On a cluster with 16 cores and 64 GB, the same code scales linearly. The pipeline design is sound; the hardware was the ceiling.
