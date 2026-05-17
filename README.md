@@ -155,22 +155,4 @@ The experiments live in `messing_around/` — a scrapbook of failures worth docu
 
 ## Why Not Faster? (Honest Rant)
 
-We tried GPU — slower than CPU. The model is only 50K parameters, so PCIe data transfer overhead eclipsed the actual compute.
-
-We tried Rust. It would accelerate featurization, but once featurization outpaced inference, inference became the new bottleneck. A 2× gain at best, not worth the FFI complexity.
-
-We tried larger batch sizes. The bottleneck is RDKit featurization, not the neural network forward pass.
-
-We tried multiprocessing. PyTorch's fork handling doesn't work inside Python's multiprocessing Pool.
-
-We tried Dask. It sends entire partitions to workers at once, causing OOM at 50K molecules.
-
-We tried Ray. OOM at 10K.
-
-We tried ONNX export. The D-MPNN's dynamic message-passing graphs cannot be statically traced.
-
-**1,442 mol/s on a $1,000 laptop is the floor.**
-
-The GPU sits idle because the model is tiny. The CPU does all the work because RDKit featurization dominates. Spark wins because its Arrow bridge streams data incrementally, keeping memory flat. Everything else either crashed or underperformed.
-
-This isn't a failure — it's the constraint envelope of a 7.6 GB WSL2 box driving a 50K-parameter network. On a cluster with 16 cores and 64 GB, the same code scales linearly. The pipeline design is sound; the hardware was the ceiling.
+We threw everything at this — GPU, Rust, multiprocessing, Dask, Ray, ONNX, bigger batches, you name it — and none of it worked. GPU was slower than CPU because the model is tiny (50K params) and the PCIe bus became the bottleneck before the neural net even woke up. Rust would maybe give us 2× on featurization but then inference becomes the new wall, and that's not worth bolting a foreign language onto the project. Bigger batches? Still waiting on RDKit. Multiprocessing? PyTorch hates forks. Dask OOM'd at 50K. Ray OOM'd at 10K. ONNX can't trace dynamic message-passing graphs. After all that, Spark's lowly Arrow bridge — which just streams 500-row chunks to Python workers — turned out to be the only thing that kept memory flat and didn't crash. **1,442 mol/s on a $1,000 laptop is the floor.** The GPU sits idle, the CPU does everything, and Spark wins by being boring and reliable. It's not a failure — it's the constraint envelope of a 7.6 GB WSL2 box driving a 50K-parameter network. On a cluster with 16 cores and 64 GB, the same code scales. The pipeline is sound; the hardware was the ceiling. We're tired but this was actually a lot of fun.
