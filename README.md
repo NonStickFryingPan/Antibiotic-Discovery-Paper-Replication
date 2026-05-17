@@ -108,3 +108,35 @@ Top 10 dominated by fluoroquinolones and β-lactams — consistent with known Gr
 **Hardware.** Tests run on WSL2 capped at ~8 GB. Beyond 200K molecules, Spark + Python workers + OS hit the OOM wall. On 16+ GB native Linux, scaling to 2.85M is feasible with the same code.
 
 **Spark in local mode.** Running a distributed engine on one machine incurs JVM overhead (~3-4 GB) with no cluster benefit. A `multiprocessing` + chunked pandas approach would avoid the JVM entirely, at the cost of reimplementing Arrow streaming.
+
+---
+
+## The Fun Stuff: Messing Around With Alternatives
+
+We went down a rabbit hole testing faster alternatives — fingerprint-based models, multiprocessing, XGBoost, and more. The key insight: **you can't beat the D-MPNN for actual discovery.**
+
+### The Halicin Test
+
+D-MPNN trained on 2,335 *E. coli* assays scored SU3327 (Halicin) at **0.5627** from the Drug Repurposing Hub — real generalization to a novel scaffold. We tested whether simpler models could do the same:
+
+| Model | Features | Halicin Score | Found? |
+|---|---|---|---|
+| **D-MPNN** | Graph neural network | **0.5627** | ✅ |
+| XGBoost (distilled) | Morgan fingerprints | 0.0415 | ❌ |
+| Random Forest (distilled) | Morgan fingerprints | 0.0203 | ❌ |
+| XGBoost (binary labels) | Morgan fingerprints | 0.0952 | ❌ |
+| Random Forest (binary labels) | Morgan fingerprints | 0.0401 | ❌ |
+
+Every fingerprint-based model missed Halicin entirely. Morgan bit vectors cannot represent the structural logic that makes Halicin antibiotic-active, no matter what you train on. Only the message-passing neural network captures it.
+
+### Three Approaches, One Winner
+
+| Approach | Speed | D-MPNN Corr | Finds Halicin? |
+|---|---|---|---|
+| **Spark D-MPNN** | 1,442 mol/s | 1.0 (reference) | ✅ |
+| XGBoost native | 26,856 mol/s | 0.596 | ❌ |
+| RF simple | 5,550 mol/s | 0.523 | ❌ |
+
+All fast models approximate the rough ranking (cephalosporins and quinolones at the top), but they fail on the structurally novel Halicin. The D-MPNN is the right choice for the final pipeline.
+
+The experiments live in `messing_around/` — a scrapbook of failures worth documenting.
