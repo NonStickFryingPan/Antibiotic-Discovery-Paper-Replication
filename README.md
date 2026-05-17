@@ -150,3 +150,21 @@ Every fingerprint-based model missed Halicin entirely. Morgan bit vectors cannot
 All fast models approximate the rough ranking (cephalosporins and quinolones at the top), but they fail on the structurally novel Halicin. The D-MPNN is the right choice for the final pipeline.
 
 The experiments live in `messing_around/` — a scrapbook of failures worth documenting.
+
+---
+
+## Why Not Faster? (The Honest Rant)
+
+Tried GPU. Slower than CPU. Model too small — data transfer dwarfed the math.
+Tried Rust. Would help featurization. But inference becomes the new wall. 2× at best.
+Tried bigger batch sizes. Didn't matter. Bottleneck is RDKit, not the forward pass.
+Tried multiprocessing. PyTorch forks don't play nice with Pool.
+Tried Dask. Sends entire partitions at once. OOM at 50K.
+Tried Ray. OOM at 10K.
+Tried ONNX. D-MPNN dynamic graphs can't be traced.
+
+**1,442 mol/s on a $1,000 laptop is the floor.**
+
+The GPU sits idle because the model is 50K parameters. The CPU does all the work because RDKit featurization dominates. Spark wins because Arrow streaming keeps memory flat. Everything else crashes or disappoints.
+
+This isn't failure — it's hitting the constraints of a 7.6 GB WSL2 box with a tiny neural network. On a cluster with 16 cores and 64 GB, the same code scales linearly. The pipeline is sound. The hardware was the ceiling.
