@@ -137,7 +137,7 @@ Every fingerprint-based model missed Halicin entirely. Morgan bit vectors cannot
 | **XGBoost native** (fastest) | **26,856 mol/s** | 0.596 | ❌ |
 | RF simple | 5,550 mol/s | 0.523 | ❌ |
 
-**Fastest achieved:** XGBoost native C++ backend at **26,856 mol/s** — 100K molecules in 4 seconds, full 2.85M in ~2 minutes. But its D-MPNN correlation is only 0.596 and it scored Halicin at 0.04 (vs 0.56). Raw speed means nothing if the model can't discover.
+**Fastest achieved:** XGBoost native C++ backend at **28,316 mol/s** — the full 2.85M ChEMBL screened in **101 seconds**. 10,753 hits > 0.5. But its D-MPNN correlation is only 0.596 and it scored Halicin at 0.04 (vs 0.56). Raw speed means nothing if the model can't discover.
 
 All fast models approximate the rough ranking (cephalosporins and quinolones at the top), but they fail on the structurally novel Halicin. The D-MPNN is the right choice for the final pipeline.
 
