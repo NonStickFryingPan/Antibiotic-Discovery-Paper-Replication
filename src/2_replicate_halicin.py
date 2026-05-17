@@ -1,41 +1,32 @@
+#!/usr/bin/env python
+"""
+Phase 2: Replicate the Cell paper — discover Halicin from the Drug Repurposing Hub.
+"""
+import os, sys, subprocess
+from pathlib import Path
+
 import pandas as pd
-import subprocess
 
-print("1. Cleaning Drug Repurposing Hub...")
-# Load the Broad Institute data, skipping the 9 metadata lines
-df_hub = pd.read_csv("data/repurposing_hub.txt", sep="\t", skiprows=9, low_memory=False)
+from _init import init_project
+from _paths import REPURPOSING_HUB, CHECKPOINT_DIR
 
-# Keep only what we need and drop missing SMILES
-df_hub = df_hub[['smiles', 'pert_iname', 'broad_id']].dropna()
+init_project()
 
-# Some molecules have multiple SMILES separated by '|'. We take the first one.
-df_hub['smiles'] = df_hub['smiles'].apply(lambda x: str(x).split('|')[0])
+CLEAN_CSV = "repurposing_clean.csv"
+PREDS_CSV = "repurposing_predictions.csv"
 
-# Save it to a clean CSV for Chemprop
-df_hub.to_csv("repurposing_clean.csv", index=False)
-print(f"Saved {len(df_hub)} molecules for inference.")
+df_hub = pd.read_csv(str(REPURPOSING_HUB), sep="\t", skiprows=9, low_memory=False)
+df_hub = df_hub[["smiles", "pert_iname", "broad_id"]].dropna()
+df_hub["smiles"] = df_hub["smiles"].apply(lambda x: str(x).split("|")[0])
+df_hub.to_csv(CLEAN_CSV, index=False)
 
-print("2. Running Neural Network Inference on the GPU...")
-# Run chemprop using the CLI
 subprocess.run([
-    "chemprop_predict",
-    "--test_path", "repurposing_clean.csv",
-    "--checkpoint_dir", "model/halicin_model",
-    "--preds_path", "repurposing_predictions.csv",
-    "--gpu", "0"
+    "chemprop_predict", "--test_path", CLEAN_CSV,
+    "--checkpoint_dir", str(CHECKPOINT_DIR),
+    "--preds_path", PREDS_CSV, "--gpu", "0",
 ])
 
-print("\n3. Searching for Halicin (SU3327)...")
-# Load the predictions
-preds = pd.read_csv("repurposing_predictions.csv")
-
-# Find SU3327 (Halicin)
-halicin = preds[preds['pert_iname'].str.contains('SU3327', case=False, na=False)]
-
-print("\n--- RESULTS ---")
-print(halicin[['pert_iname', 'smiles', 'label']])
-print("----------------")
-if float(halicin['label'].iloc[0]) > 0.5:
-    print("FUCKING BRILLIANT! The model successfully predicted Halicin as an antibiotic!")
-else:
-    print("Score is low - check the training data balance.")
+preds = pd.read_csv(PREDS_CSV)
+halicin = preds[preds["pert_iname"].str.contains("SU3327", case=False, na=False)]
+print("\n--- HALICIN (SU3327) SCORE ---")
+print(halicin[["pert_iname", "smiles", "label" if "label" in halicin.columns else preds.columns[-1]]])
