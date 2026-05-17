@@ -12,6 +12,14 @@
 
 ---
 
+## Project Overview
+
+This project reproduces the landmark 2020 *Cell* paper, *"A Deep Learning Approach to Antibiotic Discovery"* (Stokes et al.). We train a Directed Message Passing Neural Network (D-MPNN) on 2,335 empirically tested molecules, then distribute it across the ChEMBL database for high-throughput virtual screening.
+
+> ### Basically we screened the entire ChEMBL database on our laptop. (wink wink)
+
+---
+
 ## tl;dr
 
 - Replicated Stokes et al. (Cell, 2020) — discovered Halicin (SU3327) from the Drug Repurposing Hub
