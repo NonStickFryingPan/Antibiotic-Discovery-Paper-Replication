@@ -22,7 +22,7 @@ This project reproduces the landmark 2020 *Cell* paper, *"A Deep Learning Approa
 
 ## tl;dr
 
-- Replicated Stokes et al. (Cell, 2020) — discovered Halicin (SU3327) from the Drug Repurposing Hub
+- Replicated Stokes et al. (Cell, 2020) and discovered Halicin (SU3327) from the Drug Repurposing Hub
 - Built a Spark pipeline that screens ChEMBL: **1,442 molecules/second** on CPU
 - Benchmarked 200K molecules; chunked strategy for full 2.85M
 - Model correctly surfaces fluoroquinolones and cephalosporins as top candidates
@@ -67,7 +67,7 @@ chemprop_train --data_path data/cleaned_training_data.csv \
 python src/2_replicate_halicin.py
 ```
 - Screens 6,800 FDA-approved/clinical drugs from the Repurposing Hub
-- Identifies SU3327 (Halicin) — confirming the paper's discovery
+- Identifies SU3327 (Halicin), confirming the paper's discovery
 
 ### Phase 3: Distributed ChEMBL Screening
 ```bash
@@ -103,7 +103,7 @@ python src/4_chunked_screen.py              # full 2.85M (~39 min)
 | 0.8954 | CHEMBL36027 | Mitomycin analogue |
 | 0.8942 | CHEMBL15579 | Fluoroquinolone |
 
-Top 10 dominated by fluoroquinolones and β-lactams — consistent with known Gram-negative antibiotic chemotypes.
+Top 10 dominated by fluoroquinolones and β-lactams, consistent with known Gram-negative antibiotic chemotypes.
 
 ![Histogram of 100K prediction scores showing a large peak near 0 (inactive bulk) and a small tail above 0.5 (predicted actives). Five dashed vertical lines mark the top 5 discovered hits at scores between 0.89-0.90.](results/Score_Distribution.png)
 
@@ -121,11 +121,11 @@ Top 10 dominated by fluoroquinolones and β-lactams — consistent with known Gr
 
 ## The Fun Stuff: Messing Around With Alternatives
 
-We went down a rabbit hole testing faster alternatives — fingerprint-based models, multiprocessing, XGBoost, and more. The key insight: **you can't beat the D-MPNN for actual discovery.**
+We went down a rabbit hole testing faster alternatives (fingerprint models, multiprocessing, XGBoost, you name it). The lesson: **you can't beat the D-MPNN for actual discovery.**
 
 ### The Halicin Test
 
-D-MPNN trained on 2,335 *E. coli* assays scored SU3327 (Halicin) at **0.5627** from the Drug Repurposing Hub — real generalization to a novel scaffold. We tested whether simpler models could do the same:
+D-MPNN trained on 2,335 *E. coli* assays scored SU3327 (Halicin) at **0.5627** from the Drug Repurposing Hub. Real generalization to a novel scaffold. We tested whether simpler models could do the same:
 
 | Model | Features | Halicin Score | Found? |
 |---|---|---|---|
@@ -145,14 +145,14 @@ Every fingerprint-based model missed Halicin entirely. Morgan bit vectors cannot
 | **XGBoost native** (fastest) | **26,856 mol/s** | 0.596 | ❌ |
 | RF simple | 5,550 mol/s | 0.523 | ❌ |
 
-**Fastest achieved:** XGBoost native C++ backend at **28,316 mol/s** — the full 2.85M ChEMBL screened in **101 seconds**. 10,753 hits > 0.5. But its D-MPNN correlation is only 0.596 and it scored Halicin at 0.04 (vs 0.56). Raw speed means nothing if the model can't discover.
+**Fastest achieved:** XGBoost native C++ backend at **28,316 mol/s**, screening the full 2.85M ChEMBL in **101 seconds** (10,753 hits). But its D-MPNN correlation is only 0.596, and it scored Halicin at 0.04 vs 0.56. Raw speed means nothing if the model can't discover.
 
 All fast models approximate the rough ranking (cephalosporins and quinolones at the top), but they fail on the structurally novel Halicin. The D-MPNN is the right choice for the final pipeline.
 
-The experiments live in `messing_around/` — a scrapbook of failures worth documenting.
+The experiments live in `messing_around/`, a scrapbook of failures worth documenting.
 
 ---
 
 ## Why Not Faster? (Honest Rant)
 
-We threw everything at this — GPU, Rust, multiprocessing, Dask, Ray, ONNX, bigger batches, you name it — and none of it worked. GPU was slower than CPU because the model is tiny (50K params) and the PCIe bus became the bottleneck before the neural net even woke up. Rust would maybe give us 2× on featurization but then inference becomes the new wall, and that's not worth bolting a foreign language onto the project. Bigger batches? Still waiting on RDKit. Multiprocessing? PyTorch hates forks. Dask OOM'd at 50K. Ray OOM'd at 10K. ONNX can't trace dynamic message-passing graphs. After all that, Spark's lowly Arrow bridge — which just streams 500-row chunks to Python workers — turned out to be the only thing that kept memory flat and didn't crash. **1,442 mol/s on a $1,000 laptop is the floor.** The GPU sits idle, the CPU does everything, and Spark wins by being boring and reliable. It's not a failure — it's the constraint envelope of a 7.6 GB WSL2 box driving a 50K-parameter network. On a cluster with 16 cores and 64 GB, the same code scales. The pipeline is sound; the hardware was the ceiling. We're tired but this was actually a lot of fun.
+We threw everything at this (GPU, Rust, multiprocessing, Dask, Ray, ONNX, bigger batches, you name it) and none of it worked. GPU was slower than CPU because the model is tiny (50K params) and the PCIe bus became the bottleneck before the neural net even woke up. Rust would maybe give us 2x on featurization but then inference becomes the new wall, and that's not worth bolting a foreign language onto the project. Bigger batches? Still waiting on RDKit. Multiprocessing? PyTorch hates forks. Dask OOM'd at 50K. Ray OOM'd at 10K. ONNX can't trace dynamic message-passing graphs. After all that, Spark's lowly Arrow bridge (streams 500-row chunks to Python workers) turned out to be the only thing that kept memory flat and didn't crash. **1,442 mol/s on a $1,000 laptop is the floor.** The GPU sits idle, the CPU does everything, and Spark wins by being boring and reliable. It's not a failure. It's the constraint envelope of a 7.6 GB WSL2 box driving a 50K-parameter network. On a cluster with 16 cores and 64 GB, the same code scales. The pipeline is sound. The hardware was the ceiling. We're tired but this was actually a lot of fun.
